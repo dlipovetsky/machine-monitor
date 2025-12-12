@@ -127,6 +127,7 @@ func main() {
 		if err != nil {
 			logger.Error(err, "unable to parse label selector")
 			defer os.Exit(1)
+			return
 		}
 	}
 
@@ -134,6 +135,7 @@ func main() {
 	if err != nil {
 		logger.Error(err, "unable to read SSH private key file")
 		defer os.Exit(1)
+		return
 	}
 
 	ctrl.SetLogger(logger)
@@ -143,6 +145,7 @@ func main() {
 	if err != nil {
 		logger.Error(err, "unable to start manager")
 		defer os.Exit(1)
+		return
 	}
 
 	if err := (&controller.MachineReconciler{
@@ -162,6 +165,7 @@ func main() {
 	}).SetupWithManager(mgr); err != nil {
 		logger.Error(err, "unable to create controller", "controller", "Machine")
 		defer os.Exit(1)
+		return
 	}
 	// +kubebuilder:scaffold:builder
 
@@ -169,5 +173,6 @@ func main() {
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		logger.Error(err, "problem running manager")
 		defer os.Exit(1)
+		return
 	}
 }
