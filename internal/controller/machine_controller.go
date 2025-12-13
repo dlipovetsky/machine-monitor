@@ -41,14 +41,19 @@ import (
 type MachineReconciler struct {
 	Client client.Client
 
-	SSHPrivateKey []byte
-	SSHUser       string
 	SSHPort       int
-	LabelSelector *metav1.LabelSelector
+	SSHUser       string
+	SSHPrivateKey []byte
+
+	BastionSSHHost       string
+	BastionSSHPort       int
+	BastionSSHUser       string
+	BastionSSHPrivateKey []byte
 
 	LocalJournalDirectory        string
 	RemoteJournaldCursorFilePath string
 
+	LabelSelector           *metav1.LabelSelector
 	MaxConcurrentReconciles int
 	RequeueBaseDelay        time.Duration
 	RequeueMaxDelay         time.Duration
@@ -101,11 +106,51 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		machineIP,
 	)
 
-	sshClient, err := ssh.NewClient(ctx, machineIP, r.SSHPort, r.SSHUser, r.SSHPrivateKey)
+	machineSSHConfig, err := ssh.NewSSHConfig(r.SSHUser, r.SSHPrivateKey)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to create SSH client: %w", err)
+		return ctrl.Result{}, fmt.Errorf("failed to create SSH config: %w", err)
 	}
+
+	var sshClient *ssh.Client
+	if r.BastionSSHHost != "" {
+		log.V(1).Info("creating SSH client with bastion",
+			"bastionHost", r.BastionSSHHost,
+			"bastionPort", r.BastionSSHPort,
+			"bastionUser", r.BastionSSHUser,
+			"machineHost", machineIP,
+			"machinePort", r.SSHPort,
+		)
+		bastionSSHConfig, err := ssh.NewSSHConfig(r.BastionSSHUser, r.BastionSSHPrivateKey)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to create SSH config: %w", err)
+		}
+		sshClient, err = ssh.NewClientWithBastion(
+			ctx,
+			bastionSSHConfig,
+			r.BastionSSHHost,
+			r.BastionSSHPort,
+			machineSSHConfig,
+			machineIP,
+			r.SSHPort,
+		)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to create SSH client with bastion: %w", err)
+		}
+	} else {
+		log.V(1).Info("creating SSH client without bastion",
+			"machineHost", machineIP,
+			"machinePort", r.SSHPort,
+		)
+		sshClient, err = ssh.NewClient(ctx, machineSSHConfig, machineIP, r.SSHPort)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to create SSH client: %w", err)
+		}
+	}
+
 	defer func() {
+		if sshClient == nil {
+			return
+		}
 		if err := sshClient.Close(); err != nil {
 			log.Error(err, "failed to close SSH client")
 		}
