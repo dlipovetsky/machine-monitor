@@ -91,19 +91,19 @@ func main() {
 
 	flag.StringVar(
 		&config.BastionSSHHost,
-		"bastion-host",
+		"bastion-ssh-host",
 		"",
 		"The host of the bastion server. If not provided, no bastion server will be used.",
 	)
 	flag.IntVar(
 		&config.BastionSSHPort,
-		"bastion-port",
+		"bastion-ssh-port",
 		22,
 		"The port of the bastion server.",
 	)
 	flag.StringVar(
 		&config.BastionSSHUser,
-		"bastion-user",
+		"bastion-ssh-user",
 		"",
 		"The username for the SSH connection to the bastion server.",
 	)
