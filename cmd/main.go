@@ -174,6 +174,11 @@ func main() {
 		}
 	}
 
+	if config.SSHPrivateKeyFileName == "" {
+		logger.Error(nil, "--ssh-private-key flag is required")
+		defer os.Exit(1)
+		return
+	}
 	sshPrivateKey, err := os.ReadFile(config.SSHPrivateKeyFileName)
 	if err != nil {
 		logger.Error(err, "unable to read SSH private key file")
@@ -181,6 +186,11 @@ func main() {
 		return
 	}
 
+	if config.BastionSSHPrivateKeyFileName == "" {
+		logger.Error(nil, "--bastion-ssh-private-key flag is required")
+		defer os.Exit(1)
+		return
+	}
 	var bastionSSHPrivateKey []byte
 	if config.BastionSSHHost != "" {
 		bastionSSHPrivateKey, err = os.ReadFile(config.BastionSSHPrivateKeyFileName)
@@ -189,6 +199,23 @@ func main() {
 			defer os.Exit(1)
 			return
 		}
+	}
+
+	fileInfo, err := os.Stat(config.LocalJournalDirectory)
+	if err != nil {
+		logger.Error(err, "unable to stat local journal directory")
+		defer os.Exit(1)
+		return
+	}
+	if !fileInfo.IsDir() {
+		logger.Error(
+			nil,
+			"local journal directory is not a directory",
+			"directory",
+			config.LocalJournalDirectory,
+		)
+		defer os.Exit(1)
+		return
 	}
 
 	ctrl.SetLogger(logger)
