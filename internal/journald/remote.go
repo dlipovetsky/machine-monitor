@@ -28,15 +28,19 @@ func StreamFromRemote(
 	// ensure the remote journald cursor file does not exist. If the remote journald cursor file exists,
 	// then the local journal file will only receive entries from after the cursor.
 	_, err := os.Stat(localJournalFilePath)
-	if os.IsNotExist(err) {
-		log.V(1).Info(
-			"local journal file does not exist, removing remote journald cursor file",
-			"cursorFilePath",
-			cursorFilePath,
-		)
-		resetCursorErr := resetCursorFile(ctx, client, cursorFilePath)
-		if resetCursorErr != nil {
-			return fmt.Errorf("failed to reset journald cursor file: %w", resetCursorErr)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.V(1).Info(
+				"local journal file does not exist, removing remote journald cursor file",
+				"cursorFilePath",
+				cursorFilePath,
+			)
+			resetCursorErr := resetCursorFile(ctx, client, cursorFilePath)
+			if resetCursorErr != nil {
+				return fmt.Errorf("failed to reset journald cursor file: %w", resetCursorErr)
+			}
+		} else {
+			return fmt.Errorf("failed to check if local journal file exists: %w", err)
 		}
 	}
 
