@@ -18,7 +18,12 @@ func NewClient(ctx context.Context,
 	*ssh.Client,
 	error,
 ) {
-	client, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", machineHost, machinePort), machineConfig)
+	client, err := DialContext(
+		ctx,
+		"tcp",
+		fmt.Sprintf("%s:%d", machineHost, machinePort),
+		machineConfig,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("error dialing machine: %w", err)
 	}
@@ -37,7 +42,8 @@ func NewClientWithBastion(
 	*ssh.Client,
 	error,
 ) {
-	bastionClient, err := ssh.Dial(
+	bastionClient, err := DialContext(
+		ctx,
 		"tcp",
 		fmt.Sprintf("%s:%d", bastionHost, bastionPort),
 		bastionConfig,
@@ -46,7 +52,11 @@ func NewClientWithBastion(
 		return nil, fmt.Errorf("error dialing bastion: %w", err)
 	}
 
-	bastionConn, err := bastionClient.Dial("tcp", fmt.Sprintf("%s:%d", machineHost, machinePort))
+	bastionConn, err := bastionClient.DialContext(
+		ctx,
+		"tcp",
+		fmt.Sprintf("%s:%d", machineHost, machinePort),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("error dialing machine via bastion: %w", err)
 	}
