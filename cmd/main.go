@@ -51,14 +51,14 @@ func init() {
 }
 
 type Config struct {
-	SSHPort               int
-	SSHUser               string
-	SSHPrivateKeyFileName string
+	SSHPort       int
+	SSHUser       string
+	SSHPrivateKey []byte
 
-	BastionSSHHost               string
-	BastionSSHPort               int
-	BastionSSHUser               string
-	BastionSSHPrivateKeyFileName string
+	BastionSSHHost       string
+	BastionSSHPort       int
+	BastionSSHUser       string
+	BastionSSHPrivateKey []byte
 
 	LocalJournalDirectory        string
 	RemoteJournaldCursorFilePath string
@@ -66,7 +66,7 @@ type Config struct {
 	MaxConcurrentReconciles int
 	RequeueBaseDelay        time.Duration
 	RequeueMaxDelay         time.Duration
-	LabelSelectors          string
+	LabelSelectors          *metav1.LabelSelector
 
 	HealthProbeBindAddress string
 }
@@ -87,8 +87,9 @@ func main() {
 		"",
 		"The username for the SSH connection to the machines. The user must have sudo privileges.",
 	)
+	var sshPrivateKeyFileName string
 	flag.StringVar(
-		&config.SSHPrivateKeyFileName,
+		&sshPrivateKeyFileName,
 		"ssh-private-key",
 		"",
 		"The path to the private key file for the SSH connection to the machines.")
@@ -111,8 +112,9 @@ func main() {
 		"",
 		"The username for the SSH connection to the bastion server.",
 	)
+	var bastionSSHPrivateKeyFileName string
 	flag.StringVar(
-		&config.BastionSSHPrivateKeyFileName,
+		&bastionSSHPrivateKeyFileName,
 		"bastion-ssh-private-key",
 		"",
 		"The path to the private key file for the SSH connection to the bastion server.",
@@ -130,8 +132,9 @@ func main() {
 		"The path used to store the journald cursor file on the remote machine.",
 	)
 
+	var unparsedLabelSelectors string
 	flag.StringVar(
-		&config.LabelSelectors,
+		&unparsedLabelSelectors,
 		"label-selectors",
 		"",
 		"The label selectors to filter the machines to monitor. Empty string means all machines.")
@@ -173,42 +176,44 @@ func main() {
 	stdr.SetVerbosity(logLevel)
 	logger := stdr.New(log.New(os.Stderr, "", 0))
 
-	var labelSelector *metav1.LabelSelector
-	if config.LabelSelectors != "" {
-		var err error
-		labelSelector, err = metav1.ParseToLabelSelector(config.LabelSelectors)
+	if unparsedLabelSelectors != "" {
+		labelSelectors, err := metav1.ParseToLabelSelector(unparsedLabelSelectors)
 		if err != nil {
 			logger.Error(err, "unable to parse label selector")
 			defer os.Exit(1)
 			return
 		}
+		config.LabelSelectors = labelSelectors
 	}
 
-	if config.SSHPrivateKeyFileName == "" {
-		logger.Error(nil, "--ssh-private-key flag is required")
-		defer os.Exit(1)
-		return
-	}
-	sshPrivateKey, err := os.ReadFile(config.SSHPrivateKeyFileName)
-	if err != nil {
-		logger.Error(err, "unable to read SSH private key file")
-		defer os.Exit(1)
-		return
+	{
+		if sshPrivateKeyFileName == "" {
+			logger.Error(nil, "--ssh-private-key flag is required")
+			defer os.Exit(1)
+			return
+		}
+		sshPrivateKey, err := os.ReadFile(sshPrivateKeyFileName)
+		if err != nil {
+			logger.Error(err, "unable to read SSH private key file")
+			defer os.Exit(1)
+			return
+		}
+		config.SSHPrivateKey = sshPrivateKey
 	}
 
-	if config.BastionSSHPrivateKeyFileName == "" {
-		logger.Error(nil, "--bastion-ssh-private-key flag is required")
-		defer os.Exit(1)
-		return
-	}
-	var bastionSSHPrivateKey []byte
 	if config.BastionSSHHost != "" {
-		bastionSSHPrivateKey, err = os.ReadFile(config.BastionSSHPrivateKeyFileName)
+		if bastionSSHPrivateKeyFileName == "" {
+			logger.Error(nil, "--bastion-ssh-private-key flag is required")
+			defer os.Exit(1)
+			return
+		}
+		bastionSSHPrivateKey, err := os.ReadFile(bastionSSHPrivateKeyFileName)
 		if err != nil {
 			logger.Error(err, "unable to read bastion SSH private key file")
 			defer os.Exit(1)
 			return
 		}
+		config.BastionSSHPrivateKey = bastionSSHPrivateKey
 	}
 
 	fileInfo, err := os.Stat(config.LocalJournalDirectory)
@@ -250,17 +255,12 @@ func main() {
 		return
 	}
 
-	if err := (&controller.MachineReconciler{
+	reconciler := &controller.MachineReconciler{
 		Client: mgr.GetClient(),
 
-		SSHPrivateKey: sshPrivateKey,
+		SSHPrivateKey: config.SSHPrivateKey,
 		SSHUser:       config.SSHUser,
 		SSHPort:       config.SSHPort,
-
-		BastionSSHPrivateKey: bastionSSHPrivateKey,
-		BastionSSHUser:       config.BastionSSHUser,
-		BastionSSHPort:       config.BastionSSHPort,
-		BastionSSHHost:       config.BastionSSHHost,
 
 		LocalJournalDirectory:        config.LocalJournalDirectory,
 		RemoteJournaldCursorFilePath: config.RemoteJournaldCursorFilePath,
@@ -268,8 +268,17 @@ func main() {
 		MaxConcurrentReconciles: config.MaxConcurrentReconciles,
 		RequeueBaseDelay:        config.RequeueBaseDelay,
 		RequeueMaxDelay:         config.RequeueMaxDelay,
-		LabelSelector:           labelSelector,
-	}).SetupWithManager(mgr); err != nil {
+		LabelSelector:           config.LabelSelectors,
+	}
+
+	if config.BastionSSHHost != "" {
+		reconciler.BastionSSHPrivateKey = config.BastionSSHPrivateKey
+		reconciler.BastionSSHUser = config.BastionSSHUser
+		reconciler.BastionSSHPort = config.BastionSSHPort
+		reconciler.BastionSSHHost = config.BastionSSHHost
+	}
+
+	if err := reconciler.SetupWithManager(mgr); err != nil {
 		logger.Error(err, "unable to create controller", "controller", "Machine")
 		defer os.Exit(1)
 		return
