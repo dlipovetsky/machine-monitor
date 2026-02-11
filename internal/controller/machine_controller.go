@@ -106,11 +106,10 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		machineIP,
 	)
 
-	machineSSHConfig, err := ssh.NewSSHConfig(r.SSHUser, r.SSHPrivateKey)
+	machineSSHConfig, err := ssh.NewSSHConfig(ctx, r.SSHUser, r.SSHPrivateKey)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to create SSH config: %w", err)
 	}
-
 	var sshClient *ssh.Client
 	if r.BastionSSHHost != "" {
 		log.V(1).Info("creating SSH client with bastion",
@@ -120,7 +119,7 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			"machineHost", machineIP,
 			"machinePort", r.SSHPort,
 		)
-		bastionSSHConfig, err := ssh.NewSSHConfig(r.BastionSSHUser, r.BastionSSHPrivateKey)
+		bastionSSHConfig, err := ssh.NewSSHConfig(ctx, r.BastionSSHUser, r.BastionSSHPrivateKey)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to create SSH config: %w", err)
 		}

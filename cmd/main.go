@@ -186,12 +186,8 @@ func main() {
 		config.LabelSelectors = labelSelectors
 	}
 
-	{
-		if sshPrivateKeyFileName == "" {
-			logger.Error(nil, "--ssh-private-key flag is required")
-			defer os.Exit(1)
-			return
-		}
+	// The SSH private key file is optional. If it is not provided, we use the SSH agent.
+	if sshPrivateKeyFileName != "" {
 		sshPrivateKey, err := os.ReadFile(sshPrivateKeyFileName)
 		if err != nil {
 			logger.Error(err, "unable to read SSH private key file")
@@ -201,12 +197,8 @@ func main() {
 		config.SSHPrivateKey = sshPrivateKey
 	}
 
-	if config.BastionSSHHost != "" {
-		if bastionSSHPrivateKeyFileName == "" {
-			logger.Error(nil, "--bastion-ssh-private-key flag is required")
-			defer os.Exit(1)
-			return
-		}
+	// The bastion SSH private key file is optional. If it is not provided, we use the SSH agent.
+	if bastionSSHPrivateKeyFileName != "" {
 		bastionSSHPrivateKey, err := os.ReadFile(bastionSSHPrivateKeyFileName)
 		if err != nil {
 			logger.Error(err, "unable to read bastion SSH private key file")

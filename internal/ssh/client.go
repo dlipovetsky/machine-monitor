@@ -3,8 +3,12 @@ package ssh
 import (
 	"context"
 	"fmt"
+	"net"
+	"os"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // Client is an alias for the ssh.Client type, so that users can import only this package.
@@ -74,18 +78,40 @@ func NewClientWithBastion(
 }
 
 func NewSSHConfig(
+	ctx context.Context,
 	user string,
 	privateKey []byte,
 ) (*ssh.ClientConfig, error) {
-	signer, err := ssh.ParsePrivateKey(privateKey)
+	authMethod, err := authMethod(ctx, privateKey)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing private key: %s", err)
+		return nil, fmt.Errorf("error creating auth method: %w", err)
 	}
 	return &ssh.ClientConfig{
 		User: user,
 		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(signer),
+			authMethod,
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}, nil
+}
+
+func authMethod(ctx context.Context, privateKey []byte) (ssh.AuthMethod, error) {
+	log := logf.FromContext(ctx)
+	if len(privateKey) == 0 {
+		log.V(1).Info("Using SSH agent for authentication")
+		socket := os.Getenv("SSH_AUTH_SOCK")
+		conn, err := net.Dial("unix", socket)
+		if err != nil {
+			return nil, fmt.Errorf("error dialing SSH agent: %w", err)
+		}
+
+		agentClient := agent.NewClient(conn)
+		return ssh.PublicKeysCallback(agentClient.Signers), nil
+	}
+	log.V(1).Info("Using private key for authentication")
+	signer, err := ssh.ParsePrivateKey(privateKey)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing private key: %s", err)
+	}
+	return ssh.PublicKeys(signer), nil
 }
