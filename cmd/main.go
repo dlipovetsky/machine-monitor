@@ -216,21 +216,23 @@ func main() {
 		config.BastionSSHPrivateKey = bastionSSHPrivateKey
 	}
 
-	fileInfo, err := os.Stat(config.LocalJournalDirectory)
-	if err != nil {
-		logger.Error(err, "unable to stat local journal directory")
-		defer os.Exit(1)
-		return
-	}
-	if !fileInfo.IsDir() {
-		logger.Error(
-			nil,
-			"local journal directory is not a directory",
-			"directory",
-			config.LocalJournalDirectory,
-		)
-		defer os.Exit(1)
-		return
+	{
+		fileInfo, err := os.Stat(config.LocalJournalDirectory)
+		if err != nil {
+			logger.Error(err, "unable to stat local journal directory")
+			defer os.Exit(1)
+			return
+		}
+		if !fileInfo.IsDir() {
+			logger.Error(
+				nil,
+				"local journal directory is not a directory",
+				"directory",
+				config.LocalJournalDirectory,
+			)
+			defer os.Exit(1)
+			return
+		}
 	}
 
 	ctrl.SetLogger(logger)
