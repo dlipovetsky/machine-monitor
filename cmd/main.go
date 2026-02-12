@@ -186,6 +186,12 @@ func main() {
 		config.LabelSelectors = labelSelectors
 	}
 
+	if config.SSHUser == "" {
+		logger.Error(nil, "SSH user is required")
+		defer os.Exit(1)
+		return
+	}
+
 	// The SSH private key file is optional. If it is not provided, we use the SSH agent.
 	if sshPrivateKeyFileName != "" {
 		sshPrivateKey, err := os.ReadFile(sshPrivateKeyFileName)
